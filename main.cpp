@@ -4,7 +4,7 @@
 #include <string>
 
 using namespace std;
-// Transaction data
+// Transaction data new
 
 struct TransactionData
 {
