@@ -106,6 +106,61 @@ def cmd_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def _make_agent(args: argparse.Namespace):
+    from .agent import StockAgent, StockTools
+
+    def show_tool(name: str, tool_input: dict) -> None:
+        print(f"  · {name}({json.dumps(tool_input, ensure_ascii=False)})", file=sys.stderr)
+
+    return StockAgent(StockTools(args.db), model=args.model, effort=args.effort, on_tool_call=show_tool)
+
+
+def _agent_reply(agent, question: str) -> str:
+    import anthropic
+
+    no_key = "Thiếu hoặc sai API key. Đặt biến môi trường ANTHROPIC_API_KEY."
+    try:
+        return agent.ask(question)
+    except anthropic.AuthenticationError:
+        raise SystemExit(no_key)
+    except TypeError as exc:  # raised by the SDK when no credentials are configured at all
+        if "authentication" in str(exc):
+            raise SystemExit(no_key)
+        raise
+    except anthropic.RateLimitError:
+        return "[Bị giới hạn tốc độ gọi API, thử lại sau ít phút]"
+    except anthropic.APIStatusError as exc:
+        return f"[Lỗi API {exc.status_code}: {exc.message}]"
+    except anthropic.APIConnectionError:
+        return "[Không kết nối được tới Claude API]"
+
+
+def cmd_ask(args: argparse.Namespace) -> int:
+    agent = _make_agent(args)
+    print(_agent_reply(agent, " ".join(args.question)))
+    return 0
+
+
+def cmd_chat(args: argparse.Namespace) -> int:
+    agent = _make_agent(args)
+    print("Trợ lý chứng khoán Vietstock. Gõ câu hỏi, '/reset' để xóa hội thoại, '/exit' để thoát.")
+    while True:
+        try:
+            question = input("\nBạn: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return 0
+        if not question:
+            continue
+        if question in ("/exit", "/quit"):
+            return 0
+        if question == "/reset":
+            agent.reset()
+            print("Đã xóa hội thoại.")
+            continue
+        print(f"\nTrợ lý: {_agent_reply(agent, question)}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="vietstock_collector",
@@ -142,6 +197,20 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--symbol", help="Chỉ xuất một mã")
     sp.add_argument("--latest", action="store_true", help="Chỉ lấy bản ghi mới nhất của mỗi mã")
     sp.set_defaults(func=cmd_export)
+
+    def add_agent(sp: argparse.ArgumentParser) -> None:
+        sp.add_argument("--db", default=DEFAULT_DB)
+        sp.add_argument("--model", default="claude-opus-5-5")
+        sp.add_argument("--effort", default="medium", choices=["low", "medium", "high", "xhigh", "max"])
+
+    sp = sub.add_parser("chat", help="Trò chuyện với AI agent về cổ phiếu")
+    add_agent(sp)
+    sp.set_defaults(func=cmd_chat)
+
+    sp = sub.add_parser("ask", help="Hỏi AI agent một câu rồi thoát")
+    sp.add_argument("question", nargs="+")
+    add_agent(sp)
+    sp.set_defaults(func=cmd_ask)
     return p
 
 

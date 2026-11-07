@@ -50,6 +50,36 @@ File danh sách mã: mỗi dòng một hoặc nhiều mã, cách nhau bằng d�
 
 Mỗi lần `collect`/`watch` thêm một bản ghi mới (bảng `snapshots`), nên có thể dựng lịch sử giá theo thời gian.
 
+## AI agent
+
+Agent dùng Claude (Anthropic API) để trả lời câu hỏi bằng ngôn ngữ tự nhiên. Nó tự gọi các chức năng
+của app như những tool:
+
+| Tool | Việc làm |
+|---|---|
+| `get_stock_info` | Lấy dữ liệu trực tiếp từ Vietstock cho một hoặc nhiều mã và lưu vào SQLite |
+| `list_saved_symbols` | Liệt kê các mã đã lưu, số snapshot, thời gian thu thập |
+| `query_history` | Đọc các snapshot đã lưu để xem diễn biến giá |
+| `export_data` | Xuất CSV/JSON vào `data/exports/` (chỉ khi được yêu cầu) |
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...      # lấy tại console.anthropic.com
+
+# Trò chuyện nhiều lượt (/reset để xóa hội thoại, /exit để thoát)
+python -m vietstock_collector chat
+
+# Hỏi một câu
+python -m vietstock_collector ask "So sánh giá và vốn hóa ước tính của FPT, VNM, HPG"
+python -m vietstock_collector ask "Xuất lịch sử FPT ra file fpt.csv"
+```
+
+Mặc định dùng model `claude-opus-5-5` với effort `medium`. Có thể đổi bằng `--model` và
+`--effort low|medium|high|xhigh|max`; effort thấp hơn thì nhanh và rẻ hơn. Các tool được gọi sẽ in ra
+stderr để bạn thấy agent đang làm gì. Mỗi câu hỏi tốn phí gọi API theo bảng giá của Anthropic.
+
+Agent chỉ biết những dữ liệu app thu thập được: chưa có giá lịch sử OHLC hay báo cáo tài chính. Câu trả
+lời chỉ mang tính tham khảo, không phải khuyến nghị đầu tư.
+
 ## Lưu ý
 
 - App nghỉ 1.5 giây giữa các request (`--delay`) và tự thử lại khi gặp lỗi mạng/5xx. Đừng đặt

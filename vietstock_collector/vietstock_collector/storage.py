@@ -56,6 +56,14 @@ class Storage:
         )
         self.conn.commit()
 
+    def summary(self) -> list[dict]:
+        """One row per stored symbol: snapshot count and time range."""
+        sql = (
+            "SELECT symbol, COUNT(*) AS snapshots, MIN(collected_at) AS first_collected_at, "
+            "MAX(collected_at) AS last_collected_at FROM snapshots GROUP BY symbol ORDER BY symbol"
+        )
+        return [dict(r) for r in self.conn.execute(sql)]
+
     def query(self, symbol: Optional[str] = None, latest_only: bool = False) -> list[dict]:
         sql = "SELECT * FROM snapshots"
         params: list = []
